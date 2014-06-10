@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1024" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Vremenski nizovi u Cassandri sa node.js-om i Arduinom | by Marko Švaljek @msvaljek</title>
+    
+    <meta name="description" content="Vremenski nizovi u Cassandri sa node.js-om i Arduinom" />
+    <meta name="author" content="Marko Švaljek" />
+
+    <link href="css/impress.css" rel="stylesheet" />
+
+    <link href="alex/min/shCore.css" rel="stylesheet" />
+    <link href="alex/min/shThemeDefault.css" rel="stylesheet" />
+
+    <style>
+        .syntaxhighlighter .toolbar {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="impress-not-supported">
+
+<div class="fallback-message">
+    <p>Your browser <b>doesn't support the features required</b> by impress.js, so you are presented with a simplified version of this presentation.</p>
+    <p>For the best experience please use the latest <b>Chrome</b>, <b>Safari</b> or <b>Firefox</b> browser.</p>
+</div>
+
+<div id="impress">
+
+    <div class="step slide" data-x="-1500" data-y="-2500" data-scale="2">
+        <q>
+            <img src="images/cassandra_eye.png" alt="Cassandra" style="vertical-align:middle"/> C* vremenski nizovi
+        </q>
+        <q>
+            <p align="center">
+                <img src="images/time.jpg" height="150" width = "150" style="vertical-align:middle"/>
+            </p>
+        <q>
+        <q>
+            s&nbsp;&nbsp;<img src="images/nodejs.png" alt="node.js" height="70" width="240"/>
+            &nbsp;&nbsp;i&nbsp;&nbsp; 
+            <img src="images/arduino2.png" alt="Arduino" height="70" width="100"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="500" data-y="-2500">
+        <q>Marko Švaljek</q>
+        <br/><br/>
+        <p><br/><img src="images/gmail-logo.png" height="60" width = "60" style="vertical-align:middle"/> msvaljek@gmail.com</p>
+        <p><br/><img src="images/twitter.png" height="75" width = "75" style="vertical-align:middle"/>@msvaljek</p>
+        <p><br/><img src="images/blogger-logo.jpg" height="65" width = "65" style="vertical-align:middle"/> msvaljek.blogspot.com</p>
+    </div>
+
+    <div class="step slide" data-x="1500" data-y="-2500">
+        <q>
+            <p>Agenda</p>
+            <br/>
+            <ul>
+                <li>Rad s vremenskim nizovima u C*</li>
+                <li>Cassandra s node.js-om</li>
+                <li>Uradi sam: Arduino senzor</li>
+            </ul>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="-1500" data-y="-500" data-scale="2">
+        <q>Vremenski niz</q>
+        <q>
+            Vremenski niz je sekvenca izmjerenih podatkovnih točaka sa ujednačenim vremenskim razmakom.
+        </q>
+        <p><br/><a href="http://en.wikipedia.org/wiki/Time_series">http://en.wikipedia.org/wiki/Time_series</a></p>
+    </div>
+
+    <div class="step slide" data-x="500" data-y="-500">
+        <q>Zašto Cassandra?</q>
+        <q>
+            <ul>
+                <li>dobra za veliku količina podataka</li>
+                <li>varijabilna veličina podataka</li>
+                <li>podaci sekvencijalno na disku</li>
+                <li>row key + raspon = brzo (seek)</li>
+            </ul>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="1500" data-y="-500">
+        <q>Primjena</q>
+        <q>
+            <ul>
+                <li>metrike performansi</li>
+                <li>praćenje flote</li>
+                <li>senzorska očitanja</li>
+                <li>logovi, aktivnosti korisnika</li>
+                <li>financijski podaci ...</li>
+            </ul>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="2500" data-y="-500">
+        <p>C* @ CERN</p>
+        <img src="images/pbeast.jpg" height="100%" width = "100%"/>
+    </div>
+
+    <div class="step slide" data-x="-1500" data-y="1500" data-scale="2">
+        <q>Jedan uređaj, jedan red</q>
+        <q>
+            <br/>
+            <img src="images/pattern1.jpg" width = "100%"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="500" data-y="1500">
+        <q>Definicija</q>
+        <br/>
+        <pre class="brush:sql;">
+            CREATE TABLE temperature (
+               weatherstation_id text,
+               event_time timestamp,
+               temperature float,
+               PRIMARY KEY
+                (weatherstation_id, event_time)
+            );</pre>
+    </div>
+
+    <div class="step slide" data-x="1500" data-y="1500">
+        <q>Unos</q>
+        <br/>
+        <pre class="brush:sql;">
+            INSERT INTO temperature(weatherstation_id,
+                event_time, temperature)
+            VALUES ('A', '2014-06-12 18:45:00', 26.53);
+
+            INSERT INTO temperature(weatherstation_id,
+                event_time, temperature)
+            VALUES ('A', '2014-06-12 18:46:00', 26.68);</pre>
+    </div>
+
+    <div class="step slide" data-x="2500" data-y="1500">
+        <q>Sva mjerenja jedne postaje</q>
+        <br/>
+        <pre class="brush:sql;">
+            SELECT event_time, temperature
+                FROM temperature
+                    WHERE weatherstation_id = 'A';</pre>
+    </div>
+
+    <div class="step slide" data-x="3500" data-y="1500">
+        <q>Dohvat podataka od - do</q>
+        <br/>
+        <pre class="brush:sql;">
+            SELECT temperature
+            FROM temperature
+            WHERE weatherstation_id = 'A'
+                AND event_time &gt; '2014-06-12 18:40:00'
+                AND event_time &lt; '2014-06-12 18:50:00';</pre>
+    </div>
+
+    <div class="step slide" data-x="-1500" data-y="3500" data-scale="2">
+        <q>Particioniranje reda</q>
+        <q>
+            <br/>
+            <img src="images/pattern2.jpg" width = "100%"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="500" data-y="3500">
+        <q>Definicija, particioniranje</q>
+        <br/>
+        <pre class="brush:sql;">
+            CREATE TABLE temperature_by_day (
+                weatherstation_id text,
+                date text,
+                event_time timestamp,
+                temperature float,
+                PRIMARY KEY
+                    ((weatherstation_id, date),
+                    event_time)
+            );</pre>
+    </div>
+
+    <div class="step slide" data-x="1500" data-y="3500">
+        <q>Dohvat za pojedini dan</q>
+        <br/>
+        <pre class="brush:sql;">
+            SELECT *
+                FROM temperature_by_day
+                    WHERE weatherstation_id = 'A'
+                        AND date = '2014-06-12';</pre>
+    </div>
+
+    <div class="step slide" data-x="-1500" data-y="5500" data-scale="2">
+        <q>Obrnuti vremenski niz</q>
+        <q>
+            <br/>
+            <img src="images/pattern3.jpg" width = "100%"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="500" data-y="5500">
+        <q>Definicija, obrnuti vremenski niz</q>
+        <br/>
+        <pre class="brush:sql;">
+            CREATE TABLE latest_temperatures (
+               weatherstation_id text,
+               event_time timestamp,
+               temperature float,
+               PRIMARY KEY 
+                (weatherstation_id, event_time),
+            ) WITH CLUSTERING ORDER BY
+                (event_time DESC);</pre>
+    </div>
+
+    <div class="step slide" data-x="1500" data-y="5500">
+        <q>Unos, TTL</q>
+        <br/>
+        <pre class="brush:sql;">
+            INSERT INTO latest_temperatures 
+                (weatherstation_id, event_time,
+                    temperature)
+                VALUES
+                    ('A', '2014-06-12 18:55:00', 30.00)
+                        USING TTL 20;</pre>
+    </div>
+
+    <div class="step slide" data-x="2500" data-y="5500">
+        <q>Dohvat, LIMIT</q>
+        <br/>
+        <pre class="brush:sql;">
+            SELECT * FROM latest_temperatures
+                WHERE weatherstation_id = 'A'
+                    LIMIT 5;</pre>
+    </div>
+
+    <div class="step slide" data-x="-1500" data-y="7500" data-scale="2">
+        <q>Timeuuid</q>
+        <q>
+            <ul>
+                <li>vrijeme, mac, sekvenca</li>
+                <li>vremenski uređeni id</li>
+                <li>milijarda/s kroz 100y = 50%</li>
+            </ul>
+        </q>
+        <p><br/><a href="wikipedia.org/wiki/Universally_unique_identifier#Random_UUID_probability_of_duplicates">wikipedia.org/wiki/Universally_unique_identifier<br/>#Random_UUID_probability_of_duplicates</a></p>
+    </div>
+
+    <div class="step slide" data-x="500" data-y="7500">
+        <q>Timeuuid CQL funkcije</q>
+        <q>
+            <ul>
+                <li>dateOf()</li>
+                <li>now()</li>
+                <li>minTimeuuid()</li>
+                <li>maxTimeuuid()</li>
+                <li>unixTimestampOf()</li>
+            </ul>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="1500" data-y="7500">
+        <q>Primjer</q>
+        <br/>
+        <pre class="brush:sql;">
+            CREATE TABLE stocks_ticks (
+                symbol text,
+                date int,
+                trade timeuuid,
+                trade_details text,
+                PRIMARY KEY ((symbol, date), trade)
+            ) WITH CLUSTERING ORDER BY (trade DESC);</pre>
+    </div>
+
+    <div class="step slide" data-x="2500" data-y="7500">
+        <q>Unos, dohvat</q>
+        <br/>
+        <pre class="brush:sql;">
+            INSERT INTO stocks_ticks
+                (symbol, date, trade, trade_details)
+                    VALUES ('KTCG', 163, now(),
+                        'BUY:2000');
+
+            SELECT * FROM stocks_ticks
+                WHERE symbol = 'KTCG' 
+                AND date = 163
+                AND trade &gt;
+                    maxTimeuuid('2014-06-12 18:00')
+                AND trade &lt;
+                    minTimeUUID('2014-06-12 18:01');</pre>
+    </div>
+
+    <div class="step slide" data-x="10000" data-y="-2500" data-scale="2">
+        <q>
+            Node.js je platforma bazirana na
+            <b>Chrome JavaScript izvršnom okruženju</b>
+            za jednostavnu izradu aplikacija uz korištenje
+            događajima pogonjenog i ne blokirajućeg U/I modela. 
+        </q>
+        <p><br/><a href="http://nodejs.org">nodejs.org</a></p>
+    </div>
+
+    <div class="step slide" data-x="12000" data-y="-2500">
+        <q>Tradicija</q>
+        <q>
+            Svako povezivanje uzrokuje izradu nove dretve koja uzima RAM i s vremenom dolazi do određenog maksimuma.
+        </q>
+    </div>
+
+    <div class="step slide" data-x="13000" data-y="-2500">
+        <q>Obrada</q>
+        <q>
+            <img src="images/multiple_threads.png" height="100%" width = "100%"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="14000" data-y="-2500">
+        <q>Node.js</q>
+        <q>
+            <img src="images/node_event_loop.png" height="100%" width = "100%"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="15000" data-y="-2500">
+        <q>npm</q>
+        <q>
+            Posebni projekt ali ubrzo postao "defaultni" manager paketa.
+            Svaka Node Aplikacija ili modul imaju <b>package.json</b> (npm init)
+        </q>
+        <p><br/><a href="npmjs.org">npmjs.org</a></p>
+    </div>
+
+    <div class="step slide" data-x="10000" data-y="-500" data-scale="2">
+        <q>Cassandra i Node.js</q>
+        <br/>
+        <pre class="brush:bash;">
+            npm init
+
+            npm install node-cassandra-cql</pre>
+        <p><br/><a href="https://github.com/jorgebay/node-cassandra-cql">https://github.com/jorgebay/node-cassandra-cql</a></p>
+    </div>
+
+    <div class="step slide" data-x="12000" data-y="-500">
+        <q>Početno</q>
+        <pre class="brush:javascript;">
+            var cql = require('node-cassandra-cql');
+
+            var client = new cql.Client({
+                hosts: ['127.0.0.1:9042'],
+                keyspace: 'test',
+                username: 'testuser',
+                password: 'testuser'
+            });
+        </pre>
+    </div>
+
+    <div class="step slide" data-x="13000" data-y="-500">
+        <q>Čitanje</q>
+        <pre class="brush:javascript;">
+            client.execute('SELECT * FROM test_table',
+                [],
+                function(err, result) {
+                    if (err) {
+                        console.log('failed', err);
+                    } else {
+                        var i, row,
+                            n = result.rows.length; 
+                        for (i = 0; i &lt; n; i++) {
+                            row = result.rows[i];
+                            row.get('id');
+                            row.get('test_value');
+                        }
+                    }});</pre>
+    </div>
+
+    <div class="step slide" data-x="10000" data-y="1500" data-scale="2">
+        <q>
+            <p>Dijelovi za senzor</p>
+            <br/>
+            <ul>
+                <li>Arduino uno</li>
+                <li>Fotootpornik GL5528 LDR</li>
+                <li>10K OHM NTC termistor 5mm</li>
+                <li>2 x 10k otpornik</li>
+                <li>Pločica za prototipiranje</li>
+                <li>Žice</li>
+            </ul>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="12000" data-y="1500">
+        <q>Ožičenje</q>
+        <q>
+            <br/>
+            <img src="images/arduino_schematics_small.png" width = "90%"/>
+        </q>
+    </div>
+
+    <div class="step slide" data-x="13000" data-y="1500">
+        <b><p>Sketch</p></b>
+        <pre class="brush:java;">
+            void setup() {
+              Serial.begin(9600);
+            }
+
+            void loop() {
+                int light = map(analogRead(0),
+                    0, 1023, 0, 100);
+
+                double temp = Thermister(analogRead(1));
+                
+                //...
+
+                sprintf(sOut, "%d,%s", light, sTemp);
+
+                Serial.println(sOut);
+                delay(1000);
+            }
+        </pre>
+    </div>
+
+    <div class="step slide" data-x="10000" data-y="3500" data-scale="2">
+        <q>Sakupljanje podataka</q>
+        <pre class="brush:javascript;">
+            var serial = require( "serialport" );
+            var SerialPort = serial.SerialPort;
+
+            var portName = "/dev/tty.usbmodemfa1221";
+            var sp = new SerialPort( portName, {
+                baudrate: 9600,
+                parser: serial.parsers.readline("\n")
+            });
+
+            sp.on("data", function ( data ) {
+                arduinoData = translator.parse(data);
+
+                // arduinoData.light, .temperature
+        </pre>
+    </div>
+
+    <div class="step slide" data-x="12000" data-y="3500">
+        <q>npm install srmparse</q>
+        <pre class="brush:javascript;">
+            var srmparse = require("srmparse");
+
+            var config = {
+                parser : 'symbolSeparated',
+                separator : ',',
+                mappings : [
+                    { name: 'light', type: 'int' },
+                    { name: 'tmp', type: 'float' }
+                ]
+            };
+
+            var translator = srmparse(config);
+            //..
+            var arduinoData = translator.parse(data);
+        </pre>
+    </div>
+
+    <div class="step slide" data-x="13000" data-y="3500">
+        <q>Unos u C*</q>
+        <pre class="brush:javascript;">
+            client.execute(
+                'INSERT INTO room_data ' + 
+                '(day, measurementtime, light, ' +
+                    'temperature) ' +
+                'VALUES (?, dateof(now()), ?, ?)',
+                [
+                    moment().format('YYYY-MM-DD'),
+                    arduinoData.light,
+                    arduinoData.tmp
+                ],
+                function(err, result) {
+                    console.log('insert failed', err);
+                }
+            );
+        </pre>
+    </div>
+
+    <div class="step slide" data-x="13000" data-y="8000" data-scale="8">
+        <q>Reference &amp; pitanja ...</q>
+        <p>
+            <ul>
+                <br/>
+                <li><a href="http://planetcassandra.org/blog/post/getting-started-with-time-series-data-modeling">http://planetcassandra.org/blog/post/<br/>getting-started-with-time-series-data-modeling</a></li>
+                <br/>
+                <li><a href="http://playground.arduino.cc/ComponentLib/Thermistor">http://playground.arduino.cc/ComponentLib/Thermistor</a></li>
+                <br/>
+                <li><a href="http://msvaljek.blogspot.com/">http://msvaljek.blogspot.com/</a></li>
+            </ul>
+            <br/>
+            <p>
+                <img src="images/twitter.png" height="75" width = "75" style="vertical-align:middle"/>@msvaljek
+            </p>
+            <p>
+                <img src="images/gmail-logo.png" height="60" width = "60" style="vertical-align:middle"/> msvaljek@gmail.com
+            </p>
+            <br/>
+        </p>
+    </div>
+
+    <div id="overview" class="step" data-x="7500" data-y="3500" data-scale="18">
+    </div>
+
+</div>
+
+<div class="hint">
+    <p>Use a spacebar or arrow keys to navigate</p>
+</div>
+<script>
+if ("ontouchstart" in document.documentElement) { 
+    document.querySelector(".hint").innerHTML = "<p>Tap on the left or right to navigate</p>";
+}
+</script>
+
+<script src="js/impress.js"></script>
+<script src="alex/shCore.js"></script>
+<script src="alex/min/shBrushJScript.js"></script>
+<script src="alex/min/shBrushSql.js"></script>
+<script src="alex/min/shBrushBash.js"></script>
+<script src="alex/min/shBrushJava.js"></script>
+<script>
+    impress().init();
+    SyntaxHighlighter.defaults.gutter = false;
+    SyntaxHighlighter.all();
+</script>
+
+</body>
+</html>
